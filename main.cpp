@@ -12,14 +12,14 @@
 // #include <fstream>
 #include <iomanip>
 // #include <climits>
-// #include <cmath>
+#include <cmath>
 
 using namespace std;
 typedef unsigned short int usi;
 
 // #### Constants ####
-const string PROMPT = "", INVALID_TYPE = "ERROR. Invalid input data type.";
-const usi DIM = 8, MIN_USER_LENGTH = 5, MAX_USER_LENGTH = 20, MAX_TRIES = 30, CHIP_WIDTH = 3, LEFT_PADDING = 2;
+const string PROMPT = "", INVALID_TYPE = "ERROR. Invalid input data type.", ATTEMPTS = "Attempts", SCORE = "Score";
+const usi DIM = 5, MIN_USER_LENGTH = 5, MAX_USER_LENGTH = 20, MAX_TRIES = 30, CHIP_WIDTH = 8, LEFT_PADDING = 3;
 // const string HELP_FILE = "help.txt", USER_FILE = "users.txt";
 const bool DEBUG = false;
 
@@ -49,6 +49,7 @@ void pause();
 
 int readInt(string ERR_MSG = INVALID_TYPE, int m = INT_MIN, int n = INT_MAX);
 bool readBool(string prompt, string opt1, string opt2);
+usi countDigits(unsigned int n);
 
 usi menu();
 tGame newGame(usi dim = DIM, usi max_tries = MAX_TRIES);
@@ -114,7 +115,6 @@ int readInt(string ERR_MSG, int m, int n) {
 	cin >> input;
 	while (cin.fail() || input < m || input > n) {
 		cin.clear(); cin.sync();
-		cin.ignore(INT_MAX, '\n');
 		cout << ERR_MSG;
 		cin >> input;
 	}
@@ -137,6 +137,17 @@ bool readBool(string prompt, string opt1, string opt2) {
 	cin.sync();
 
 	if (i == opt1) return true; else return false;
+}
+
+/** Returns the number of digits of an unsigned integer. **/
+usi countDigits(unsigned int n) {
+	unsigned int dig = 1;
+	n /= 10;
+	while (n > 0) {
+		dig += 1;
+		n /= 10;
+	}
+	return dig;
 }
 
 /** Displays the menu and returns an usi representing user selection. **/
@@ -171,7 +182,20 @@ void genBoard(tBoard &board) {
 
 /** Displays the board, tries and score of game. **/
 void displayGame(tGame &game, usi chip_width, usi left_padding) {
-	cout << right << setw(20) << "Attempts: " << game.tries << "  Score: " << game.score << endl;
+	
+	// Computes leading whitespace to center header.
+	// left_padding + space + chips + separators.
+	usi x = (left_padding + 1 + chip_width * game.board.dim + game.board.dim + 1);
+	// ATTEMPTS + ": " + score + " / " + SCORE + ": " + tries. 
+	usi y = ATTEMPTS.length() + 2 + countDigits(game.score) + 3 + SCORE.length() + 2 + countDigits(game.tries);
+	usi center_space = 0;
+	if (x > y) {
+		center_space = (x - y) / 2;
+	}
+	cout << setw(center_space) << ' ';
+	cout << ATTEMPTS << ": " << game.tries << " / " << SCORE << ": " << game.score << endl;
+
+	if (game.board.dim > 9 && chip_width == 1) chip_width++; // Cannot print two-digit numbers under a char without not leaving spaces.
 
 	// First separator:
 	printFLSeparator(true, game.board.dim, left_padding, chip_width);
@@ -192,11 +216,20 @@ void displayGame(tGame &game, usi chip_width, usi left_padding) {
 	// Last separator:
 	printFLSeparator(false, game.board.dim, left_padding, chip_width);
 
+	// X-axis labels:
+	usi margin = chip_width / 2;
+	usi cw_parity = chip_width % 2; // 0 is even, 1 is odd.
+	cout << setw(left_padding + 2 + margin - (cw_parity == 0 ? 1 : 0)) << ' '; // Centers labels depending on parity of chip_width.
+																			   // Labels are left-aligned if they cannot be centered.
+	for (usi i = 1; i <= game.board.dim; i++) {
+		cout << i << setw(2 * margin + cw_parity - (countDigits(i) - 1)) << ' ';
+	}
+
 }
 
 /** Displays a row. **/
 void printRow(usi i, tBoard &board, usi left_padding, usi chip_width) {
-	cout << setw(left_padding) << i + 1 << " ";
+	cout << setw(left_padding) << board.dim - i << " ";
 	cout << char(179);
 	for (usi j = 0; j < board.dim; j++) {
 		printChip(board.a[i][j], chip_width);
