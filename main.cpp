@@ -62,20 +62,21 @@ tGame newGame(usi dim = DIM, usi max_tries = MAX_TRIES);
 void genBoard(tBoard &board);
 
 bool inBounds(const tGame& game, int row, int col);
-void conductGame(tGame& game);
+bool conductGame(tGame& game);
 bool getValidMove(const tGame& game, int& row, int& col, tDirection& dir);
 bool testGroup(const tGame& game, int row, int col, tDirection dir, tChip color);
 bool testValidMove(const tGame& game, int row, int col, tDirection dir);
 void processTurn(tGame& game);
 bool seekAndDestroy(tGame& game);
+void addPoints(tGame& game, int currentChipCount);
 bool drop(tGame& game);
 void dropLoop(tGame& game);
-
+void nextFrame(const tGame& game);
 bool promptAction(int dim, int& row, int& col, tDirection& dir);
-bool pausar();
+void pausar();
 
-void displayGame(tGame &game, usi chip_width = CHIP_WIDTH, usi left_padding = LEFT_PADDING);
-void printRow(usi i, tBoard &board, usi left_padding = LEFT_PADDING, usi chip_width = CHIP_WIDTH);
+void displayGame(const tGame &game, usi chip_width = CHIP_WIDTH, usi left_padding = LEFT_PADDING);
+void printRow(usi i, const tBoard &board, usi left_padding = LEFT_PADDING, usi chip_width = CHIP_WIDTH);
 void printSeparator(usi dim = DIM, usi left_padding = LEFT_PADDING, usi chip_width = CHIP_WIDTH);
 void printFLSeparator(bool first, usi dim = DIM, usi left_padding = LEFT_PADDING, usi chip_width = CHIP_WIDTH);
 void printChip(tChip chip, usi chip_width = CHIP_WIDTH);
@@ -106,7 +107,18 @@ int main() {
 		switch (opt) {
 		case 1:
 			tGame game = newGame(dim, max_tries);
-			displayGame(game, chip_width);
+			bool stabilized = seekAndDestroy(game);
+			while (!stabilized) {
+				bool full = false;
+				while (!full) {
+					full = drop(game);
+				}
+				stabilized = seekAndDestroy(game);
+			}
+			game.score = 0;
+			nextFrame(game);
+			if (!conductGame(game))
+				cout << "You got " << game.score << " points :)" << endl;
 			break;
 		}
 
@@ -199,7 +211,7 @@ void genBoard(tBoard &board) {
 }
 
 /** Displays the board, tries and score of game. **/
-void displayGame(tGame &game, usi chip_width, usi left_padding) {
+void displayGame(const tGame &game, usi chip_width, usi left_padding) {
 
 	// Computes leading whitespace to center header.
 	// left_padding + space + chips + separators.
@@ -242,11 +254,11 @@ void displayGame(tGame &game, usi chip_width, usi left_padding) {
 	for (usi i = 1; i <= game.board.dim; i++) {
 		cout << i << setw(2 * margin + cw_parity - (countDigits(i) - 1)) << ' ';
 	}
-
+	cout << endl;
 }
 
 /** Displays a row. **/
-void printRow(usi i, tBoard &board, usi left_padding, usi chip_width) {
+void printRow(usi i, const tBoard &board, usi left_padding, usi chip_width) {
 	cout << setw(left_padding) << board.dim - i << " ";
 	cout << char(179);
 	for (usi j = 0; j < board.dim; j++) {
@@ -312,8 +324,9 @@ tColor tChipTotColor(tChip chip) {
 	case green:
 		resultado = dark_green;
 		break;
-	default:
-		black;
+	case none:
+		resultado = black;
+		break;
 	}
 	return resultado;
 }
@@ -340,7 +353,7 @@ string getUserName() {
 	return user;
 }
 
-void conductGame(tGame& game) {
+bool conductGame(tGame& game) {
 	bool canceled = false;
 	int row, col, row2, col2;
 	tDirection dir;
@@ -369,9 +382,12 @@ void conductGame(tGame& game) {
 			aux = game.board.a[row][col];
 			game.board.a[row][col] = game.board.a[row2][col2];
 			game.board.a[row2][col2] = aux;
+
+			processTurn(game);
+			game.tries--;
 		}
-		processTurn(game);
 	}
+	return canceled;
 }
 
 bool getValidMove(const tGame& game, int& row, int& col, tDirection& dir) {
@@ -383,7 +399,11 @@ bool getValidMove(const tGame& game, int& row, int& col, tDirection& dir) {
 		while (!valid && !canceled) {
 			cout << "That's not valid, dude. ";
 			canceled = promptAction(game.board.dim, row, col, dir);
-			if (!canceled) valid = testValidMove(game, row, col, dir);
+			if (!canceled) {
+				col = col -1;
+				row = game.board.dim - row;
+				valid = testValidMove(game, row, col, dir);
+			}
 		}
 	}
 	return canceled;
@@ -396,7 +416,7 @@ bool testGroup(const tGame& game, int row, int col, tDirection dir, tChip color)
 	while (!found && inBounds && dir != moveup) {
 		inBounds = (row-(w+1) >= 0);
 		if (inBounds) {
-			found = (color == game.board.a[row-(w+1)][col]);
+			found = (color != game.board.a[row-(w+1)][col]);
 			if (!found) w++;
 		}
 	}
@@ -405,7 +425,7 @@ bool testGroup(const tGame& game, int row, int col, tDirection dir, tChip color)
 	while (!found && inBounds && dir != moveleft) {
 		inBounds = (col-(a+1) >= 0);
 		if (inBounds) {
-			found = (color == game.board.a[row][col-(a+1)]);
+			found = (color != game.board.a[row][col-(a+1)]);
 			if (!found) a++;
 		}
 	}
@@ -414,7 +434,7 @@ bool testGroup(const tGame& game, int row, int col, tDirection dir, tChip color)
 	while (!found && inBounds && dir != movedown) {
 		inBounds = (row+(s+1) < game.board.dim);
 		if (inBounds) {
-			found = (color == game.board.a[row+(s+1)][col]);
+			found = (color != game.board.a[row+(s+1)][col]);
 			if (!found) s++;
 		}
 	}
@@ -423,11 +443,10 @@ bool testGroup(const tGame& game, int row, int col, tDirection dir, tChip color)
 	while (!found && inBounds && dir != moveright) {
 		inBounds = (col+(d+1) < game.board.dim);
 		if (inBounds) {
-			found = (color == game.board.a[row][col+(d+1)]);
+			found = (color != game.board.a[row][col+(d+1)]);
 			if (!found) d++;
 		}
 	}
-
 	return (a+d+1 >= 3)||(w+s+1 >= 3);
 }
 
@@ -438,28 +457,28 @@ bool testValidMove(const tGame& game, int row, int col, tDirection dir) {
 		result = inBounds(game, row, col) && inBounds(game, row-1, col);
 		if (result) {
 			result = testGroup(game, row, col, moveup, game.board.a[row-1][col])
-						|| testGroup(game, row, col, movedown, game.board.a[row][col]);
+						|| testGroup(game, row-1, col, movedown, game.board.a[row][col]);
 		}
 		break;
 	case movedown:
 		result = inBounds(game, row, col) && inBounds(game, row+1, col);
 		if (result) {
 			result = testGroup(game, row, col, movedown, game.board.a[row+1][col])
-						|| testGroup(game, row, col, moveup, game.board.a[row][col]);
+						|| testGroup(game, row+1, col, moveup, game.board.a[row][col]);
 		}
 		break;
 	case moveleft:
 		result = inBounds(game, row, col) && inBounds(game, row, col-1);
 		if (result) {
 			result = testGroup(game, row, col, moveleft, game.board.a[row][col-1])
-						|| testGroup(game, row, col, moveright, game.board.a[row][col]);
+						|| testGroup(game, row, col-1, moveright, game.board.a[row][col]);
 		}
 		break;
 	case moveright:
 		result = inBounds(game, row, col) && inBounds(game, row, col+1);
 		if (result) {
 			result = testGroup(game, row, col, moveright, game.board.a[row][col+1])
-						|| testGroup(game, row, col, moveleft, game.board.a[row][col]);
+						|| testGroup(game, row, col+1, moveleft, game.board.a[row][col]);
 		}
 	}
 	return result;
@@ -471,9 +490,175 @@ bool inBounds(const tGame& game, int row, int col) {
 
 void processTurn(tGame& game) {
 	bool stabilized = seekAndDestroy(game);
+	nextFrame(game);
 	while (!stabilized) {
 		dropLoop(game);
 		stabilized = seekAndDestroy(game);
+		if (!stabilized) nextFrame(game);
 	}
 }
 
+bool seekAndDestroy(tGame& game) {
+	bool mask[game.board.dim][game.board.dim];
+	bool result = true;
+	tChip lastChip;
+	int currentChipCount;
+
+	for (int i = 0; i < game.board.dim; i++)
+		for (int j = 0; j < game.board.dim; j++)
+			mask[i][j] = false;
+	// SEEK
+	for (int i = 0; i < game.board.dim; i++) {
+		lastChip = none;
+		currentChipCount = 0;
+		for (int j = 0; j < game.board.dim; j++) {
+			if (game.board.a[i][j] == lastChip) {
+				currentChipCount++;
+			} else {
+				lastChip = game.board.a[i][j];
+				addPoints(game, currentChipCount);
+				currentChipCount = 1;
+			}
+			if (currentChipCount > 3) {
+				mask[i][j] = true;
+			} else if (currentChipCount == 3) {
+				mask[i][j] = true;
+				mask[i][j-1] = true;
+				mask[i][j-2] = true;
+				result = false;
+			}
+		}
+		addPoints(game, currentChipCount);
+	}
+	
+	for (int j = 0; j < game.board.dim; j++) {
+		lastChip = none;
+		currentChipCount = 0;		
+		for (int i = 0; i < game.board.dim; i++) {
+			if (game.board.a[i][j] == lastChip) {
+				currentChipCount++;
+			} else {
+				lastChip = game.board.a[i][j];
+				addPoints(game, currentChipCount);
+				currentChipCount = 1;
+			}
+			if (currentChipCount > 3) {
+				mask[i][j] = true;
+			} else if (currentChipCount == 3) {
+				mask[i][j] = true;
+				mask[i-1][j] = true;
+				mask[i-2][j] = true;
+				result = false;
+			}
+		}
+		addPoints(game, currentChipCount);
+	}
+	
+	// And now... DESTROY!!
+	for (int i = 0; i < game.board.dim; i++) {
+		for (int j = 0; j < game.board.dim; j++) {
+			if (mask[i][j]) game.board.a[i][j] = none;
+		}
+	}
+
+	return result;
+}
+
+void addPoints(tGame& game, int currentChipCount) {
+	if (currentChipCount >= 5) game.score += 15;
+	else if (currentChipCount == 4) game.score += 8;
+	else if (currentChipCount == 3) game.score += 3;
+}
+
+bool drop(tGame& game) {
+	bool result = true;
+	
+	for (int j = 0; j < game.board.dim; j++) {
+		for (int i = game.board.dim - 1; i > 0 ; i--) {
+			if (game.board.a[i][j] == none) {
+				result = false;
+				if (game.board.a[i-1][j] != none) {
+					game.board.a[i][j] = game.board.a[i-1][j];
+					game.board.a[i-1][j] = none;
+				}
+			}
+		}
+		if (game.board.a[0][j] == none) {
+			game.board.a[0][j] = (tChip)(rand() % 4);
+			result = false;
+		}
+	}
+	
+	return result;
+}
+
+void dropLoop(tGame& game) {
+	bool full = false;
+	while (!full) {
+		full = drop(game);
+		if (!full) nextFrame(game);
+	}
+}
+
+void nextFrame(const tGame& game) {
+	pausar();
+	displayGame(game);
+}
+
+void pausar() {
+	if (DEBUG) {
+		system("pause");
+	} else {
+		Sleep(800);
+		system("cls");
+	}
+}
+
+bool promptAction(int dim, int& row, int& col, tDirection& dir) {
+	bool result;
+	char direct;
+	cin.clear();
+	cin.sync();
+	cout << "Row, col, dir (A, B, I o D; 0 para cancelar): ";
+	cin >> row;
+	if (!cin.fail() && row != 0) {
+		cin >> col;
+		cin >> ws;
+		cin >> direct;
+	}
+	result = (row == 0);
+	while ( !result && (cin.fail() || row < 0 || row > dim || col < 1 || col > dim
+						|| (direct != 'A' && direct != 'B' && direct != 'I' && direct != 'D' 
+							&& direct != 'a' && direct != 'b' && direct != 'i' && direct != 'd') ) ){
+		cin.clear();
+		cin.sync();
+		cin.ignore(INT_MAX, '\n');
+		cout << ">Row, col, dir (A, B, I o D; 0 para cancelar): ";
+		cin >> row;
+		if (!cin.fail() && row != 0) {
+			cin >> col;
+			cin >> ws;
+			cin >> direct;
+		}
+		result = (row == 0);
+	}
+	switch (direct) {
+	case 'A':
+	case 'a':
+		dir = moveup;
+		break;
+	case 'B':
+	case 'b':
+		dir = movedown;
+		break;
+	case 'I':
+	case 'i':
+		dir = moveleft;
+		break;
+	case 'D':
+	case 'd':
+		dir = moveright;
+		break;
+	}
+	return result;
+}
