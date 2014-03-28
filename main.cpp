@@ -24,7 +24,7 @@ typedef unsigned short int usi;
 
 // #### Constants ####
 const string PROMPT = "", INVALID_TYPE = "ERROR. Invalid input data type.", ATTEMPTS = "Attempts", SCORE = "Score";
-const usi DIM = 5, MIN_USER_LENGTH = 5, MAX_USER_LENGTH = 20, MAX_TRIES = 30, CHIP_WIDTH = 8, LEFT_PADDING = 3;
+const usi DIM = 8, MIN_USER_LENGTH = 5, MAX_USER_LENGTH = 20, MAX_TRIES = 30, CHIP_WIDTH = 3, LEFT_PADDING = 3;
 const string HELP_FILE = "help.txt", USER_FILE = "users.txt";
 const bool DEBUG = false;
 
@@ -33,8 +33,8 @@ typedef enum tChip {magenta, yellow, blue, green, none};
 typedef enum tDirection {moveup, movedown, moveleft, moveright}; // We all love One Direction
 
 typedef struct {
-tChip a[DIM][DIM];
-usi dim;
+	tChip a[DIM][DIM];
+	usi dim;
 } tBoard;
 
 typedef struct {
@@ -44,10 +44,10 @@ typedef struct {
 } tGame;
 
 typedef enum tColor {
-black, dark_blue, dark_green, dark_cyan, dark_red,
-dark_magenta, dark_yellow, light_gray, dark_gray,
-light_blue, light_green, light_cyan, light_red,
-light_magenta, light_yellow, white
+	black, dark_blue, dark_green, dark_cyan, dark_red,
+	dark_magenta, dark_yellow, light_gray, dark_gray,
+	light_blue, light_green, light_cyan, light_red,
+	light_magenta, light_yellow, white
 };
 
 // #### Prototypes ####
@@ -61,6 +61,7 @@ usi menu();
 tGame newGame(usi dim = DIM, usi max_tries = MAX_TRIES);
 void genBoard(tBoard &board);
 
+// Game logic:
 bool inBounds(const tGame& game, int row, int col);
 bool conductGame(tGame& game);
 bool getValidMove(const tGame& game, int& row, int& col, tDirection& dir);
@@ -75,6 +76,7 @@ void nextFrame(const tGame& game);
 bool promptAction(int dim, int& row, int& col, tDirection& dir);
 void pausar();
 
+// Render:
 void displayGame(const tGame &game, usi chip_width = CHIP_WIDTH, usi left_padding = LEFT_PADDING);
 void printRow(usi i, const tBoard &board, usi left_padding = LEFT_PADDING, usi chip_width = CHIP_WIDTH);
 void printSeparator(usi dim = DIM, usi left_padding = LEFT_PADDING, usi chip_width = CHIP_WIDTH);
@@ -105,7 +107,7 @@ int main() {
 	while (opt != 0) {
 		cout << endl;
 		switch (opt) {
-		case 1:
+		case 1: // New game.
 			tGame game = newGame(dim, max_tries);
 			bool stabilized = seekAndDestroy(game);
 			while (!stabilized) {
@@ -115,10 +117,12 @@ int main() {
 				}
 				stabilized = seekAndDestroy(game);
 			}
+
 			game.score = 0;
 			nextFrame(game);
 			if (!conductGame(game))
-				cout << "You got " << game.score << " points :)" << endl;
+				cout << "You got " << game.score << " points." << endl;
+			
 			break;
 		}
 
@@ -332,7 +336,7 @@ tColor tChipTotColor(tChip chip) {
 }
 
 /** Asks for and returns a username.
-** Username must be a single word with length between MIN_USER_LENGTH and MAX_USER_LENGTH chars. **/
+ ** Username must be a single word with length between MIN_USER_LENGTH and MAX_USER_LENGTH chars. **/
 string getUserName() {
 	string user;
 	cout << "Welcome to Color Crush. Please, input a username: ";
@@ -353,7 +357,7 @@ string getUserName() {
 	return user;
 }
 
-bool conductGame(tGame& game) {
+bool conductGame(tGame &game) {
 	bool canceled = false;
 	int row, col, row2, col2;
 	tDirection dir;
@@ -363,34 +367,34 @@ bool conductGame(tGame& game) {
 		if (!canceled) {
 			switch(dir) {
 				case moveup:
-					row2 = row -1;
+					row2 = row - 1;
 					col2 = col;
 					break;
 				case movedown:
-					row2 = row +1;
+					row2 = row + 1;
 					col2 = col;
 					break;
 				case moveleft:
 					row2 = row;
-					col2 = col -1;
+					col2 = col - 1;
 					break;
 				case moveright:
 					row2 = row;
-					col2 = col +1;
+					col2 = col + 1;
 					break;
 			}
 			aux = game.board.a[row][col];
 			game.board.a[row][col] = game.board.a[row2][col2];
 			game.board.a[row2][col2] = aux;
-
-			processTurn(game);
+			
 			game.tries--;
+			processTurn(game);
 		}
 	}
 	return canceled;
 }
 
-bool getValidMove(const tGame& game, int& row, int& col, tDirection& dir) {
+bool getValidMove(const tGame &game, int &row, int &col, tDirection &dir) {
 	bool canceled = promptAction(game.board.dim, row, col, dir);
 	if (!canceled) {
 		col = col -1;
@@ -409,11 +413,11 @@ bool getValidMove(const tGame& game, int& row, int& col, tDirection& dir) {
 	return canceled;
 }
 
-bool testGroup(const tGame& game, int row, int col, tDirection dir, tChip color) {
+bool testGroup(const tGame &game, int row, int col, tDirection dir, tChip color) {
 	int w = 0, a = 0, s = 0, d = 0;
 	bool found = false;
 	bool inBounds = true;
-	while (!found && inBounds && dir != moveup) {
+	while (!found && inBounds && dir != moveup) { // pa no hacer un if.
 		inBounds = (row-(w+1) >= 0);
 		if (inBounds) {
 			found = (color != game.board.a[row-(w+1)][col]);
@@ -450,7 +454,7 @@ bool testGroup(const tGame& game, int row, int col, tDirection dir, tChip color)
 	return (a+d+1 >= 3)||(w+s+1 >= 3);
 }
 
-bool testValidMove(const tGame& game, int row, int col, tDirection dir) {
+bool testValidMove(const tGame &game, int row, int col, tDirection dir) {
 	bool result;
 	switch (dir) {
 	case moveup:
@@ -484,11 +488,11 @@ bool testValidMove(const tGame& game, int row, int col, tDirection dir) {
 	return result;
 }
 
-bool inBounds(const tGame& game, int row, int col) {
+bool inBounds(const tGame &game, int row, int col) {
 	return row >= 0 && row < game.board.dim && col >= 0 && col < game.board.dim;
 }
 
-void processTurn(tGame& game) {
+void processTurn(tGame &game) {
 	bool stabilized = seekAndDestroy(game);
 	nextFrame(game);
 	while (!stabilized) {
@@ -498,15 +502,18 @@ void processTurn(tGame& game) {
 	}
 }
 
-bool seekAndDestroy(tGame& game) {
-	bool mask[game.board.dim][game.board.dim];
+bool seekAndDestroy(tGame &game) {
+	bool mask[DIM][DIM];
 	bool result = true;
 	tChip lastChip;
 	int currentChipCount;
 
+
 	for (int i = 0; i < game.board.dim; i++)
 		for (int j = 0; j < game.board.dim; j++)
 			mask[i][j] = false;
+
+
 	// SEEK
 	for (int i = 0; i < game.board.dim; i++) {
 		lastChip = none;
@@ -530,7 +537,7 @@ bool seekAndDestroy(tGame& game) {
 		}
 		addPoints(game, currentChipCount);
 	}
-	
+
 	for (int j = 0; j < game.board.dim; j++) {
 		lastChip = none;
 		currentChipCount = 0;		
@@ -553,7 +560,7 @@ bool seekAndDestroy(tGame& game) {
 		}
 		addPoints(game, currentChipCount);
 	}
-	
+
 	// And now... DESTROY!!
 	for (int i = 0; i < game.board.dim; i++) {
 		for (int j = 0; j < game.board.dim; j++) {
@@ -564,15 +571,15 @@ bool seekAndDestroy(tGame& game) {
 	return result;
 }
 
-void addPoints(tGame& game, int currentChipCount) {
+void addPoints(tGame &game, int currentChipCount) {
 	if (currentChipCount >= 5) game.score += 15;
 	else if (currentChipCount == 4) game.score += 8;
 	else if (currentChipCount == 3) game.score += 3;
 }
 
-bool drop(tGame& game) {
+bool drop(tGame &game) {
 	bool result = true;
-	
+
 	for (int j = 0; j < game.board.dim; j++) {
 		for (int i = game.board.dim - 1; i > 0 ; i--) {
 			if (game.board.a[i][j] == none) {
@@ -588,11 +595,11 @@ bool drop(tGame& game) {
 			result = false;
 		}
 	}
-	
+
 	return result;
 }
 
-void dropLoop(tGame& game) {
+void dropLoop(tGame &game) {
 	bool full = false;
 	while (!full) {
 		full = drop(game);
@@ -600,7 +607,7 @@ void dropLoop(tGame& game) {
 	}
 }
 
-void nextFrame(const tGame& game) {
+void nextFrame(const tGame &game) {
 	pausar();
 	displayGame(game);
 }
@@ -614,7 +621,7 @@ void pausar() {
 	}
 }
 
-bool promptAction(int dim, int& row, int& col, tDirection& dir) {
+bool promptAction(int dim, int &row, int &col, tDirection &dir) {
 	bool result;
 	char direct;
 	cin.clear();
@@ -633,7 +640,7 @@ bool promptAction(int dim, int& row, int& col, tDirection& dir) {
 		cin.clear();
 		cin.sync();
 		cin.ignore(INT_MAX, '\n');
-		cout << ">Row, col, dir (A, B, I o D; 0 para cancelar): ";
+		cout << ">Row, col, dir (A, B, I o D; 0 to cancel): ";
 		cin >> row;
 		if (!cin.fail() && row != 0) {
 			cin >> col;
@@ -642,6 +649,7 @@ bool promptAction(int dim, int& row, int& col, tDirection& dir) {
 		}
 		result = (row == 0);
 	}
+	// Función aparte.
 	switch (direct) {
 	case 'A':
 	case 'a':
